@@ -1,16 +1,7 @@
 #!/bin/bash
 
-# Navigate to the frontend directory
-cd frontend
-
-# Install frontend dependencies
-npm install
-
-# Start the frontend development server
-npm run dev &
-
 # Navigate to the backend directory
-cd ../backend
+cd backend
 
 # Create a virtual environment if it doesn't exist
 if [ ! -d "venv" ]; then
@@ -22,6 +13,18 @@ source venv/bin/activate
 
 # Install backend dependencies
 pip install -r ../requirements.txt
+
+# Navigate to the frontend directory
+cd ../frontend
+
+# Install frontend dependencies
+npm install
+
+# Start the frontend development server
+npm run dev &
+
+# Navigate back to the backend directory
+cd ../backend
 
 # Start the backend server
 uvicorn app.main:app --reload &

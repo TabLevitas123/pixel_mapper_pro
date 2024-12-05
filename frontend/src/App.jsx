@@ -12,6 +12,9 @@ function App() {
   const [zoomLevel, setZoomLevel] = useState(1);
   const [showGrid, setShowGrid] = useState(false);
   const [gridOpacity, setGridOpacity] = useState(0.5);
+  const [selectionMode, setSelectionMode] = useState('box');
+  const [showMiniMap, setShowMiniMap] = useState(true);
+  const [viewportBounds, setViewportBounds] = useState({ x: 0, y: 0, width: 0, height: 0 });
   
   const historyRef = useRef({
     past: [],
@@ -36,6 +39,11 @@ function App() {
             url: imageUrl,
             ...await response.json()
           });
+          // Reset state when new image is loaded
+          setSelectedPixels([]);
+          setZoomLevel(1);
+          setViewportBounds({ x: 0, y: 0, width: 0, height: 0 });
+          historyRef.current = { past: [], future: [] };
         }
       } catch (error) {
         console.error('Error uploading image:', error);
@@ -67,67 +75,74 @@ function App() {
     }
   };
 
+  const handleClearSelection = () => {
+    historyRef.current.past = [...historyRef.current.past, selectedPixels];
+    historyRef.current.future = [];
+    setSelectedPixels([]);
+  };
+
   const handleExport = async () => {
     if (selectedPixels.length === 0) return;
     
     const data = {
-      filename: selectedImage.filename,
-      resolution: selectedImage.resolution,
-      aspect_ratio: selectedImage.aspect_ratio,
-      pixels: selectedPixels
+      image_metadata: {
+        filename: selectedImage.filename,
+        width: selectedImage.width,
+        height: selectedImage.height,
+        format: selectedImage.format,
+        aspect_ratio: `${selectedImage.width}:${selectedImage.height}`
+      },
+      selected_pixels: selectedPixels.map(pixel => ({
+        x: pixel.x,
+        y: pixel.y,
+        color: {
+          hex: pixel.color.hex,
+          rgb: pixel.color.rgb
+        }
+      }))
     };
     
     try {
-      const response = await fetch('http://localhost:8000/export-pixels', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(data)
+      const blob = new Blob([JSON.stringify(data, null, 2)], {
+        type: 'application/json'
       });
-      
-      if (response.ok) {
-        const blob = new Blob([JSON.stringify(await response.json(), null, 2)], {
-          type: 'application/json'
-        });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'pixel-data.json';
-        a.click();
-        URL.revokeObjectURL(url);
-      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'pixel-data.json';
+      a.click();
+      URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Error exporting pixel data:', error);
     }
   };
 
   return (
-    <div className="app">
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <AppBar position="static">
         <Toolbar>
-          <Typography variant="h6">Pixel Mapper Pro</Typography>
+          <Typography variant="h6" style={{ flexGrow: 1 }}>
+            Pixel Mapper Pro
+          </Typography>
+          <Button
+            variant="contained"
+            component="label"
+            color="secondary"
+          >
+            Upload Image
+            <input
+              type="file"
+              hidden
+              accept="image/*"
+              onChange={handleImageUpload}
+            />
+          </Button>
         </Toolbar>
       </AppBar>
 
-      <Container maxWidth="lg" className="main-content">
-        <div className="upload-section">
-          <input
-            accept="image/*"
-            style={{ display: 'none' }}
-            id="image-upload"
-            type="file"
-            onChange={handleImageUpload}
-          />
-          <label htmlFor="image-upload">
-            <Button variant="contained" color="primary" component="span">
-              Upload Image
-            </Button>
-          </label>
-        </div>
-
-        {selectedImage && (
-          <div className="workspace">
+      <Container style={{ flexGrow: 1, position: 'relative', padding: '20px' }}>
+        {selectedImage ? (
+          <>
             <ImageCanvas
               image={selectedImage}
               selectedPixels={selectedPixels}
@@ -135,26 +150,51 @@ function App() {
               zoomLevel={zoomLevel}
               showGrid={showGrid}
               gridOpacity={gridOpacity}
+              selectionMode={selectionMode}
+              onViewportChange={setViewportBounds}
+              historyRef={historyRef}
             />
-            <MiniMap
-              image={selectedImage}
-              selectedPixels={selectedPixels}
-              viewportBounds={null}
-            />
+            
             <ToolPanel
               onUndo={handleUndo}
               onRedo={handleRedo}
-              onClear={() => setSelectedPixels([])}
+              onClear={handleClearSelection}
               onExport={handleExport}
               showGrid={showGrid}
               setShowGrid={setShowGrid}
               gridOpacity={gridOpacity}
               setGridOpacity={setGridOpacity}
+              selectionMode={selectionMode}
+              setSelectionMode={setSelectionMode}
+              showMiniMap={showMiniMap}
+              setShowMiniMap={setShowMiniMap}
+              zoomLevel={zoomLevel}
+              setZoomLevel={setZoomLevel}
             />
+
+            {showMiniMap && (
+              <MiniMap
+                image={selectedImage}
+                selectedPixels={selectedPixels}
+                viewportBounds={viewportBounds}
+              />
+            )}
+
             <PixelInfoPanel
               selectedPixels={selectedPixels}
               imageMetadata={selectedImage}
             />
+          </>
+        ) : (
+          <div style={{
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            <Typography variant="h5" color="textSecondary">
+              Upload an image to begin
+            </Typography>
           </div>
         )}
       </Container>

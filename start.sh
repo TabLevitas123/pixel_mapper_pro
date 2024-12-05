@@ -21,7 +21,7 @@ fi
 source venv/bin/activate
 
 # Install backend dependencies
-pip install -r requirements.txt
+pip install -r ../requirements.txt
 
 # Start the backend server
 uvicorn app.main:app --reload &
